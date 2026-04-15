@@ -129,4 +129,4 @@ export function DashboardHome() {
         </div>
       </div>
     </div>
-  )
+  )}

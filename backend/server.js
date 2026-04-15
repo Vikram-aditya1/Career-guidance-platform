@@ -1,20 +1,32 @@
+const nodemailer = require("nodemailer")
 require("dotenv").config()
 const express = require("express")
 const mongoose = require("mongoose")
 const cors = require("cors")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
-
 const app = express()
 app.use(cors())
 app.use(express.json())
-
-// ✅ CONNECT DB
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: "Vikramaditya854@gmail.com", 
+    pass: "pjsxmxwyoearuyxs" 
+  }
+})
+async function sendWelcomeEmail(email, name) {
+  await transporter.sendMail({
+    from: "Vikramaditya854@gmail.com",
+    to: email,
+    subject: "Account Created Successfully 🎉",
+    text: `Hi ${name}, your account has been successfully created! Welcome to Career Guidance Platform.`
+  })
+}
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log(err))
 
-// ✅ SCHEMA
 const User = mongoose.model("User", {
   name: String,
   email: String,
@@ -25,10 +37,18 @@ const User = mongoose.model("User", {
   recommendation: String
 })
 
-// ✅ SIGNUP (HASH PASSWORD)
 app.post("/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields required" })
+    }
+
+    const existingUser = await User.findOne({ email })
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" })
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
@@ -40,13 +60,16 @@ app.post("/signup", async (req, res) => {
 
     await user.save()
 
-    res.json({ message: "User created" })
+    await sendWelcomeEmail(email, name)
+
+    res.json({ message: "User created successfully" })
+
   } catch (err) {
+    console.error(err)
     res.status(500).json({ error: "Signup failed" })
   }
 })
 
-// ✅ LOGIN (COMPARE + JWT)
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body
@@ -76,7 +99,6 @@ app.post("/login", async (req, res) => {
   }
 })
 
-// ✅ AUTH MIDDLEWARE
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization
 
@@ -117,7 +139,6 @@ app.post("/submit-test", authMiddleware, async (req, res) => {
   res.json({ recommendation })
 })
 
-// ✅ START SERVER
-app.listen(process.env.PORT, () =>
-  console.log(`Server running on port ${process.env.PORT}`)
+app.listen(process.env.PORT || 5000, () =>
+  console.log(`Server running on port ${process.env.PORT || 5000}`)
 )
