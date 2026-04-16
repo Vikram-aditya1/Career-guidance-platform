@@ -22,22 +22,37 @@ export function Recommendations() {
   const [loading, setLoading] = useState(true)
   const [results, setResults] = useState(null)
 
+  // ✅ ALWAYS GET LATEST RESULT (FIXED)
   useEffect(() => {
-    const t = setTimeout(() => {
+    function refresh() {
       setResults(loadResults())
-      setLoading(false)
-    }, 650)
+    }
+
+    refresh()
+
+    // listen when user comes back to this tab/page
+    window.addEventListener('focus', refresh)
+
+    return () => {
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 500)
     return () => clearTimeout(t)
   }, [])
 
-  const streamHint = results?.streamHint || 'Science'
+  const streamHint = results?.streamHint || null
   const profile = results?.profile || 'Explorer'
 
   const courses = useMemo(() => {
+    if (!streamHint) return courseRecommendations
+
     return courseRecommendations
       .slice()
       .sort((a, b) =>
-        a.stream === streamHint && b.stream !== streamHint ? -1 : 0,
+        a.stream === streamHint && b.stream !== streamHint ? -1 : 0
       )
   }, [streamHint])
 
@@ -45,9 +60,9 @@ export function Recommendations() {
     <div>
       <PageHeader
         title="Recommendations"
-        subtitle="Suggested streams, courses, and career paths based on a simple aptitude profile."
+        subtitle="Personalized guidance based on your aptitude test."
         right={
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-extrabold text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-200">
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-extrabold text-indigo-700">
             <Sparkles size={16} />
             Profile: {profile}
           </div>
@@ -65,113 +80,140 @@ export function Recommendations() {
           {!results ? (
             <div className="card p-6">
               <div className="flex items-start gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-700">
                   <Target size={18} />
                 </div>
                 <div>
-                  <div className="text-lg font-extrabold text-slate-900 dark:text-white">
+                  <div className="text-lg font-extrabold">
                     Take the aptitude test first
                   </div>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                    Once you submit the test, you’ll see a profile-based hint and
-                    stream-first course ordering here.
+                  <p className="mt-1 text-sm text-slate-600">
+                    Complete the test to get personalized recommendations.
                   </p>
                 </div>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <>
+              {/* 🔥 RESULT */}
+              <div className="card p-6 mb-6">
 
-          <div className="mt-6">
-            <div className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-              Suggested streams
-            </div>
-            <div className="mt-3 grid gap-5 md:grid-cols-3">
-              {streamRecommendations.map((s) => {
-                const emphasized = s.stream === streamHint
-                return (
-                  <div
-                    key={s.stream}
-                    className={`card p-6 ${
-                      emphasized
-                        ? 'ring-2 ring-indigo-500/30'
-                        : 'ring-0 ring-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-lg font-extrabold text-slate-900 dark:text-white">
-                          {s.stream}
-                        </div>
-                        <div className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                          {s.description}
+                <div className="text-xl font-extrabold">
+                  🎯 Recommended Stream:
+                  <span className="text-indigo-600 ml-2">
+                    {results.streamHint}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-slate-600">
+                  {results.reason}
+                </p>
+
+                {/* SCORES */}
+                <div className="mt-6">
+                  <div className="font-bold mb-2">Your Performance</div>
+
+                  {Object.entries(results.scores || {}).map(([key, value]) => (
+                    <div key={key} className="mb-3">
+                      <div className="flex justify-between text-sm font-bold">
+                        <span>{key}</span>
+                        <span>{value}</span>
+                      </div>
+
+                      <div className="w-full bg-gray-200 h-2 rounded mt-1">
+                        <div
+                          className="bg-indigo-500 h-2 rounded"
+                          style={{ width: `${value}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+
+              {/* STREAMS */}
+              <div className="mt-6">
+                <div className="text-xs font-extrabold uppercase text-slate-400">
+                  Suggested streams
+                </div>
+
+                <div className="mt-3 grid gap-5 md:grid-cols-3">
+                  {streamRecommendations.map((s) => {
+                    const emphasized = s.stream === streamHint
+                    return (
+                      <div
+                        key={s.stream}
+                        className={`card p-6 ${
+                          emphasized ? 'ring-2 ring-indigo-500/30' : ''
+                        }`}
+                      >
+                        <div className="flex justify-between">
+                          <div>
+                            <div className="text-lg font-extrabold">
+                              {s.stream}
+                            </div>
+                            <div className="mt-2 text-sm text-slate-600">
+                              {s.description}
+                            </div>
+                          </div>
+
+                          {emphasized && (
+                            <div className="text-xs font-bold text-indigo-600">
+                              Best match
+                            </div>
+                          )}
                         </div>
                       </div>
-                      {emphasized ? (
-                        <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200">
-                          Best match
-                        </div>
-                      ) : null}
-                    </div>
+                    )
+                  })}
+                </div>
+              </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {s.highlights.map((h) => (
-                        <span
-                          key={h}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-200"
-                        >
-                          {h}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+              {/* COURSES */}
+              <div className="mt-10">
+                <div className="text-xs font-extrabold uppercase text-slate-400">
+                  Courses & career paths
+                </div>
 
-          <div className="mt-10">
-            <div className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-              Courses & career paths
-            </div>
-            <div className="mt-3 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {courses.map((c) => (
-                <div key={c.title} className="card p-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-lg font-extrabold text-slate-900 dark:text-white">
+                <div className="mt-3 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                  {courses.map((c) => (
+                    <div key={c.title} className="card p-6">
+
+                      <div className="text-lg font-extrabold">
                         {c.title}
                       </div>
-                      <div className="mt-1 text-sm font-bold text-indigo-600 dark:text-indigo-300">
+
+                      <div className="mt-1 text-sm text-indigo-600 font-bold">
                         Stream: {c.stream}
                       </div>
-                    </div>
-                    {c.stream === streamHint ? (
-                      <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200">
-                        Matches hint
-                      </div>
-                    ) : null}
-                  </div>
 
-                  <div className="mt-4 text-xs font-extrabold uppercase tracking-wider text-slate-400">
-                    Possible careers
-                  </div>
-                  <div className="mt-2 grid gap-2">
-                    {c.careers.map((p) => (
-                      <div
-                        key={p}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-200"
-                      >
-                        {p}
+                      {c.stream === streamHint && (
+                        <div className="mt-2 text-xs text-green-600 font-bold">
+                          Matches your profile
+                        </div>
+                      )}
+
+                      <div className="mt-4 text-xs font-bold uppercase text-slate-400">
+                        Careers
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="mt-2 space-y-2">
+                        {c.careers.map((p) => (
+                          <div key={p} className="text-sm">
+                            {p}
+                          </div>
+                        ))}
+                      </div>
+
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
   )
 }
-

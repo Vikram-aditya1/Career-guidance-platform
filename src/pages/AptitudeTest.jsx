@@ -1,161 +1,170 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
-import { PageHeader } from '../components/PageHeader.jsx'
+import { useEffect, useState } from 'react'
 import { aptitudeQuestions, scoreToProfile } from '../data/aptitude.js'
 
-const KEY = 'oscea_test_results'
-
-function saveResults(results) {
-  localStorage.setItem(KEY, JSON.stringify(results))
-}
+const STORAGE_KEY = "aptitude_progress"
 
 export function AptitudeTest() {
-  const navigate = useNavigate()
-  const total = aptitudeQuestions.length
-  const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
-  const [submitting, setSubmitting] = useState(false)
-  const current = aptitudeQuestions[step]
+  const [current, setCurrent] = useState(0)
+  const [result, setResult] = useState(null)
 
-  const answeredCount = useMemo(() => Object.keys(answers).length, [answers])
-  const progress = Math.round(((step + 1) / total) * 100)
+  // ✅ LOAD SAVED DATA
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    if (saved) {
+      setAnswers(saved.answers || {})
+      setCurrent(saved.current || 0)
+      setResult(saved.result || null)
+    }
+  }, [])
 
-  const canPrev = step > 0
-  const canNext = step < total - 1
-  const selected = answers[current.id]
+  // ✅ SAVE PROGRESS
+  useEffect(() => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ answers, current, result })
+    )
+  }, [answers, current, result])
 
-  function setAnswer(idx) {
-    setAnswers((a) => ({ ...a, [current.id]: idx }))
+  const q = aptitudeQuestions[current]
+
+  function handleAnswer(index) {
+    setAnswers({ ...answers, [q.id]: index })
   }
 
-  async function submit() {
-    setSubmitting(true)
-    await new Promise((r) => setTimeout(r, 800))
-    const profile = scoreToProfile(answers)
-    saveResults({
-      completedAt: new Date().toISOString(),
-      answers,
-      ...profile,
-    })
-    setSubmitting(false)
-    navigate('/dashboard/recommendations')
+  function nextQuestion() {
+    if (current < aptitudeQuestions.length - 1) {
+      setCurrent(current + 1)
+    }
+  }
+
+  function prevQuestion() {
+    if (current > 0) {
+      setCurrent(current - 1)
+    }
+  }
+
+  function handleSubmit() {
+    const res = scoreToProfile(answers)
+    setResult(res)
+
+    // ✅ save for recommendations page
+    localStorage.setItem("oscea_test_results", JSON.stringify(res))
+    localStorage.setItem("userStream", res.streamHint)
+  }
+
+  function resetTest() {
+    localStorage.removeItem(STORAGE_KEY)
+    setAnswers({})
+    setCurrent(0)
+    setResult(null)
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Aptitude Test"
-        subtitle="Answer a few quick questions. Your results will be saved locally."
-      />
+    <div className="max-w-3xl mx-auto">
 
-      <div className="card p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm font-extrabold text-slate-900 dark:text-white">
-            Question {step + 1} of {total}
-          </div>
-          <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
-            Answered: {answeredCount}/{total}
-          </div>
-        </div>
+      {/* ================= TEST ================= */}
+      {!result && (
+        <div className="card p-6">
 
-        <div className="mt-4">
-          <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800">
-            <div
-              className="h-2 rounded-full bg-indigo-600 transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="mt-2 text-right text-xs font-bold text-slate-500 dark:text-slate-400">
-            {progress}%
-          </div>
-        </div>
+          <h2 className="text-lg font-extrabold mb-4">
+            Question {current + 1} / {aptitudeQuestions.length}
+          </h2>
 
-        <div className="mt-6 text-left">
-          <div className="text-lg font-extrabold text-slate-900 dark:text-white">
-            {current.question}
-          </div>
+         <p className="text-base font-semibold mb-4 text-slate-100">
+            {q.question}
+          </p>
 
-          <div className="mt-4 grid gap-3">
-            {current.options.map((opt, idx) => {
-              const active = selected === idx
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setAnswer(idx)}
-                  className={`flex items-start justify-between gap-3 rounded-2xl border p-4 text-left transition ${
-                    active
-                      ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-950/30'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950/30 dark:hover:bg-slate-900/40'
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="font-bold text-slate-900 dark:text-white">
-                      {opt}
-                    </div>
-                  </div>
-                  {active ? (
-                    <div className="mt-0.5 text-indigo-600 dark:text-indigo-300">
-                      <CheckCircle2 size={18} />
-                    </div>
-                  ) : (
-                    <div className="mt-1 h-4 w-4 rounded-full border border-slate-300 dark:border-slate-700" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={!canPrev}
-          >
-            <ChevronLeft size={16} />
-            Previous
-          </button>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {canNext ? (
+          <div className="space-y-3">
+            {q.options.map((opt, i) => (
               <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setStep((s) => Math.min(total - 1, s + 1))}
+                key={i}
+                onClick={() => handleAnswer(i)}
+                className={`w-full text-left p-4 rounded-xl border transition-all font-medium ${
+  answers[q.id] === i
+    ? "bg-indigo-600 text-white border-indigo-600"
+    : "bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700"
+}`}
               >
-                Next
-                <ChevronRight size={16} />
+                {opt}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-between">
+            <button
+              onClick={prevQuestion}
+              disabled={current === 0}
+              className="px-4 py-2 rounded border"
+            >
+              Back
+            </button>
+
+            {current === aptitudeQuestions.length - 1 ? (
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-500"
+              >
+                Submit
               </button>
             ) : (
               <button
-                type="button"
-                className="btn-primary"
-                onClick={submit}
-                disabled={submitting || Object.keys(answers).length < total}
+                onClick={nextQuestion}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-500"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    Submitting…
-                  </>
-                ) : (
-                  'Submit'
-                )}
+                Next
               </button>
             )}
           </div>
         </div>
+      )}
 
-        {Object.keys(answers).length < total ? (
-          <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
-            Please answer all questions to submit.
+      {/* ================= RESULT ================= */}
+      {result && (
+        <div className="card p-6 mt-6">
+
+          <h2 className="text-xl font-extrabold">
+            🎯 Recommended Stream:
+            <span className="text-indigo-600 ml-2">
+              {result.streamHint}
+            </span>
+          </h2>
+
+          <p className="mt-2 text-sm text-gray-600">
+            {result.reason}
+          </p>
+
+          {/* SCORES */}
+          <div className="mt-6">
+            <h3 className="font-bold mb-3">Your Performance</h3>
+
+            {Object.entries(result.scores).map(([key, value]) => (
+              <div key={key} className="mb-3">
+                <div className="flex justify-between text-sm font-bold">
+                  <span>{key}</span>
+                  <span>{value}</span>
+                </div>
+
+                <div className="w-full bg-gray-200 h-2 rounded mt-1">
+                  <div
+                    className="bg-indigo-500 h-2 rounded"
+                    style={{ width: `${value}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-        ) : null}
-      </div>
+
+          {/* 🔁 RETAKE BUTTON */}
+          <button
+            onClick={resetTest}
+            className="mt-6 px-4 py-2 border rounded"
+          >
+            Retake Test
+          </button>
+
+        </div>
+      )}
     </div>
   )
 }
-
